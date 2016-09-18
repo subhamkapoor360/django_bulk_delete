@@ -2,27 +2,6 @@ from django.db import connection
 
 CHAIN_DICT = dict()
 
-
-def get_mapping(from_model, to_model, next_queue=set([]), visited=[]):
-    lss = []
-    visited.append(from_model)
-    if from_model is None or to_model is None:
-        return
-    fm_fields = from_model._meta.get_all_related_objects()
-    for f in fm_fields:
-        if not (fieldmany_to_one or fieldmany_to_many):
-            continue
-        # import ipdb; ipdb.set_trace()
-        if (fieldmany_to_one or fieldmany_to_many) and fieldrelated_model == to_model:
-            return field.name
-        if fieldrelated_model not in visited:
-            next_queue.add(fieldrelated_model)
-    print fieldrelated_model
-    if len(next_queue) > 0:
-        get_mapping(next_queue.pop(), to_model, visited_models)
-    return None
-
-
 def get_accoring_to_db(db, value):
     if db == 'mysql':
         return value
@@ -67,23 +46,7 @@ def levels_of_hierarchy(rel_model):
         else:
             return CHAIN_DICT
 
-# def refine_chain_dict(chain_dict):
-#     check_list = []
-#     check_dict = dict()
-#     for table,field_list in chain_dict.iteritems():
-#         second_check = []
-#         for field in field_list:
-#             field_class = field.related_model
-#             if field_class not in check_list:
-#                 second_check.append(field)
-#                 check_list.append(field_class)
-#             if table not in check_dict:
-#                 check_dict[table] = second_check
-#     print check_list
-#     return check_dict
-
-
-def delete_wrap(query_set, cascade_true=True, db_name='postgres'):
+def delete_wrap(query_set):
     _model = query_set.model
     all_fields = [field for field in _model._meta.get_fields()
                   if field.one_to_many]
