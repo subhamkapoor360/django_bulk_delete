@@ -12,7 +12,7 @@ def get_mapping(from_model, to_model, next_queue=set([]), visited=[]):
     for f in fm_fields:
         if not (fieldmany_to_one or fieldmany_to_many):
             continue
-        #import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         if (fieldmany_to_one or fieldmany_to_many) and fieldrelated_model == to_model:
             return field.name
         if fieldrelated_model not in visited:
@@ -33,8 +33,8 @@ def get_accoring_to_db(db, value):
 def my_custom_sql(string):
     cursor = connection.cursor()
     cursor.execute(string)
-    # row = cursor.fetchone()
-    # return row
+    row = cursor.fetchall()
+    return row
 
 
 def get_query_builder(query_set, connection):
@@ -83,25 +83,23 @@ def levels_of_hierarchy(rel_model):
 #     return check_dict
 
 
-
-
-
 def delete_wrap(query_set, cascade_true=True, db_name='postgres'):
     _model = query_set.model
     all_fields = [field for field in _model._meta.get_fields()
                   if field.one_to_many]
     string = "delete %s from %s %s where %s in %s"
 
-    _all_tables = [
-        get_accoring_to_db(
-            db_name,
-            field.related_model._meta.db_table) for field in all_fields]
+    # _all_tables = [
+    #     get_accoring_to_db(
+    #         db_name,
+    #         field.related_model._meta.db_table) for field in all_fields]
+    _all_tables = [field.related_model for field in all_fields]
     main_table = get_accoring_to_db(db_name, _model._meta.db_table)
     middle_string = ""
     for field in all_fields:
         rel_model = field.related_model
         chain_models = levels_of_hierarchy(rel_model)
-        #chain_models = refine_chain_dict(chain_models)
+        # chain_models = refine_chain_dict(chain_models)
         _field_model = get_accoring_to_db(
             db_name, field.related_model._meta.db_table)
         # _field_model_pk = field.related_model._meta.pk.column
@@ -109,22 +107,34 @@ def delete_wrap(query_set, cascade_true=True, db_name='postgres'):
             db_name, field.get_joining_columns()[0][1])
         _tmp_str = 'INNER JOIN ' + _field_model + ' ON '
         _tmp_str = _tmp_str + _field_model + '.' + _field_model_pk + ' = ' + \
-            main_table + '.' + get_accoring_to_db(db_name, _model._meta.pk.column) + ' '
+            main_table + '.' + \
+                get_accoring_to_db(db_name, _model._meta.pk.column) + ' '
         middle_string += _tmp_str
         chain_str = list()
-    for model_name, field_list in chain_models.iteritems():
-        for rel_field in field_list:
-            chain_str.append('INNER JOIN ' + rel_field.related_model._meta.db_table + " ON " + model_name._meta.db_table + \
-                "." + model_name._meta.pk.column + ' = ' + rel_field.related_model._meta.db_table + "." + rel_field.get_joining_columns()[0][1] + " ")
-            _all_tables.append(rel_field.related_model._meta.db_table)
+        if chain_models != None:
+            for model_name, field_list in chain_models.iteritems():
+                for rel_field in field_list:
+                    chain_str.append('INNER JOIN ' + get_accoring_to_db(db_name, rel_field.related_model._meta.db_table) + " ON " + get_accoring_to_db(db_name, model_name._meta.db_table) +
+                        "." + get_accoring_to_db(db_name, model_name._meta.pk.column) + ' = ' + get_accoring_to_db(db_name, rel_field.related_model._meta.db_table) + "." + get_accoring_to_db(db_name, rel_field.get_joining_columns()[0][1]) + " ")
+                    # _all_tables.append(rel_field.related_model._meta.db_table)
+                    _all_tables.append(rel_field.related_model)
     for joins in chain_str:
         middle_string += joins
-    str_0 = ', '.join(list(set(_all_tables)))
-    str_3 = get_accoring_to_db(
-        db_name,
-        main_table +
-        "." +
-        _model._meta.pk.column)
+    _all_tables = list(set(_all_tables))
+    _all_tables.append(_model)
+    _all_tables_tmp = []
+    for t in _all_tables:
+        _all_tables_tmp.append(
+    t._meta.db_table +
+    "." +
+    t._meta.pk.column +
+    " as " +
+    t._meta.db_table +
+    "_" +
+     t._meta.pk.column)
+    str_0 = ', '.join(list(set(_all_tables_tmp)))
+    str_3 = main_table + "." + get_accoring_to_db(
+        db_name, _model._meta.pk.column)
     query_set = query_set.values_list('pk')
     str_4, value_tuple = get_query_builder(query_set, connection)
     if 'WHERE' in str_4:
@@ -132,14 +142,42 @@ def delete_wrap(query_set, cascade_true=True, db_name='postgres'):
     else:
         str_5 = ''
     # string = "delete " + str_0 + " from " +main_table + " " + middle_string + " where " + str_3 + " in ("+ str_4 + ") "
-    query_str_1 = "delete " + str_0 + " from " + main_table + " " + \
+    # query_str_1 = "delete " + str_0 + " from " + main_table + " " + \
+    #     middle_string + " where " + str_3 + " in (" + str_4 + ") "
+    query_str_1 = "select " + str_0 + " from " + main_table + " " + \
         middle_string + " where " + str_3 + " in (" + str_4 + ") "
     if str_5 != '':
-        query_str_2 = "delete " + main_table + " from " + main_table + " where " + str_5
+        # query_str_2 = "delete " + main_table + " from " + main_table + "
+        # where " + str_5
+        query_str_2 = "select " + main_table + " from " + main_table + " where " + str_5
     else:
-        query_str_2 = "delete " + main_table + " from " + main_table
-    #my_custom_sql(query_str_1 % value_tuple)
-    #my_custom_sql(query_str_2 % value_tuple)
-    print query_str_2 % value_tuple
-    print query_str_1 % value_tuple
+        # query_str_2 = "delete " + main_table + " from " + main_table
+        query_str_2 = "select " + main_table + " from " + main_table
+    tuples = my_custom_sql(query_str_1 % value_tuple)
+    final_delete_query(_all_tables, tuples)
+
     return string
+
+
+def final_delete_query(table_list, tuples):
+    i = 0
+    id_list = []
+    while i <len(tuples[0]):
+        tmp = []
+        for v in tuples:
+           tmp.append(v[i])
+        id_list.append(tmp)
+        i= i + 1
+    k = 0
+    sql_queries = []
+    while k<len(table_list):
+        id_params = ",".join([str(ii) for ii in id_list[k]])
+        sql_queries.append("Delete from " + table_list[k]._meta.db_table + " WHERE " + table_list[k]._meta.pk.column + " IN (" + id_params +")")
+        k+=1
+    for i in sql_queries:
+        my_custom_sql(i)
+
+
+
+
+

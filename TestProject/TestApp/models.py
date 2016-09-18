@@ -28,6 +28,6 @@ class C(models.Model):
     c_for = models.ForeignKey(B)
 
     def __str__(self):
-        return self.c_char + " " + self.c_for.b_char
+        return self.c_char
 
 
